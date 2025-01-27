@@ -19,17 +19,36 @@
 <body>
     <div class="scanner-box">
         <h1>LOL Scanner 🔍</h1>
-        <input type="text" id="target" placeholder="Enter website URL or contract address">
+        <input type="text" id="target" placeholder="Enter website URL or Solana contract address">
+        <div id="error" class="error"></div>
         <button onclick="startScan(event)">Check Legitimacy</button>
         <div class="results" id="results"></div>
     </div>
 
     <script>
+    function validateInput(input) {
+        const isURL = input => {
+            try { new URL(input); return true } 
+            catch { return false }
+        };
+        const isSolana = input => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(input);
+        return isURL(input) || isSolana(input);
+    }
+
     async function startScan(e) {
         e.preventDefault();
-        const target = document.getElementById('target').value;
+        const target = document.getElementById('target').value.trim();
+        const errorEl = document.getElementById('error');
         const results = document.getElementById('results');
+        
+        errorEl.textContent = '';
         results.innerHTML = 'Scanning...';
+
+        if (!validateInput(target)) {
+            errorEl.textContent = 'Please enter a valid URL or Solana address';
+            results.innerHTML = '';
+            return;
+        }
 
         try {
             const response = await fetch('/api/scan', {
@@ -37,20 +56,13 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ target })
             });
+
+            const data = await response.json();
             
-            // Handle non-JSON responses
-            const responseText = await response.text();
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch {
-                throw new Error(`Server returned invalid JSON: ${responseText.slice(0, 100)}`);
+            if (response.status !== 200) {
+                throw new Error(data.error || 'Scan failed');
             }
 
-            if (!response.ok || data.error) {
-                throw new Error(data.error?.message || 'Unknown server error');
-            }
-            
             const score = calculateScore(data);
             results.innerHTML = `
                 <div class="score ${score > 50 ? 'good' : 'bad'}">
@@ -66,10 +78,15 @@
 
     function calculateScore(data) {
         let score = 0;
-        score += Math.min(data.whois?.domainAge || 0, 40); // Max 40 for age
-        score += data.whois?.hasSSL ? 20 : 0;
-        score += !data.gsb?.malwareDetected ? 30 : 0;
-        score += data.solscan?.verified ? 10 : 0;
+        score += Math.min(data.whois.domainAge || 0, 40);
+        score += data.whois.hasSSL ? 20 : 0;
+        score += !data.gsb.malwareDetected ? 30 : 0;
+        
+        // Only add Solscan score if contract was checked
+        if (data.solscan.verified !== undefined) {
+            score += data.solscan.verified ? 10 : 0;
+        }
+        
         return Math.min(Math.max(score, 0), 100);
     }
     </script>
