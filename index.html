@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LOL - Larp or Legit</title>
+    <script src="https://cdn.wappalyzer.com/wappalyzer.js"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', sans-serif; max-width: 800px; 
+            margin: 2rem auto; padding: 0 1rem; background: #f0f2f5;
+        }
+        .scanner-box {
+            background: white; padding: 2rem; 
+            border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        input {
+            width: 100%; padding: 12px; border: 2px solid #e0e0e0;
+            border-radius: 8px; margin: 1rem 0; font-size: 16px;
+        }
+        button {
+            background: #4CAF50; color: white; border: none;
+            padding: 12px 24px; border-radius: 8px; cursor: pointer;
+            font-weight: bold; transition: all 0.3s;
+        }
+        button:hover { background: #45a049; }
+        .results { margin-top: 2rem; }
+        .score { 
+            font-size: 24px; font-weight: bold; padding: 1rem;
+            border-radius: 8px; text-align: center;
+        }
+        .good { background: #d4edda; color: #155724; }
+        .bad { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="scanner-box">
+        <h1>LOL Scanner 🔍</h1>
+        <input type="text" id="target" placeholder="Enter website URL or contract address">
+        <button onclick="startScan()">Check Legitimacy</button>
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+    async function startScan() {
+        const target = document.getElementById('target').value;
+        const results = document.getElementById('results');
+        results.innerHTML = 'Scanning...';
+
+        try {
+            const response = await fetch('/api/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target })
+            });
+            
+            const data = await response.json();
+            let score = calculateScore(data);
+            
+            results.innerHTML = `
+                <div class="score ${score > 50 ? 'good' : 'bad'}">
+                    Legitimacy Score: ${score}/100
+                </div>
+                <h3>Details:</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+        } catch (error) {
+            results.innerHTML = `Error: ${error.message}`;
+        }
+    }
+
+    function calculateScore(data) {
+        let score = 0;
+        // Domain age scoring (max 40 points)
+        if (data.whois.domainAge > 365) score += 40;
+        else if (data.whois.domainAge > 180) score += 30;
+        else score += 10;
+
+        // SSL scoring (20 points)
+        if (data.whois.hasSSL) score += 20;
+
+        // Malware detection (negative 30 if found)
+        if (!data.gsb.malwareDetected) score += 30;
+
+        // Contract verification (10 points)
+        if (data.solscan.verified) score += 10;
+
+        return Math.min(Math.max(score, 0), 100);
+    }
+    </script>
+</body>
+</html>
