@@ -1,16 +1,15 @@
-export default async function handler(req, res) {
-    // Set JSON header FIRST
+const fetch = require('node-fetch'); // Add this if using Node.js <18
+
+async function handler(req, res) {
     res.setHeader('Content-Type', 'application/json');
     
     try {
-        // Validate request
         if (!req.body) throw new Error("Empty request body");
-        const { target } = JSON.parse(req.body);
+        const { target } = req.body; // No JSON.parse needed
         if (!target) throw new Error("Missing target parameter");
         if (!process.env.WHOISXML_API_KEY) throw new Error("WHOISXML_API_KEY not set");
         if (!process.env.GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY not set");
 
-        // Make API calls with error handling
         const whoisResponse = await fetch(
             `https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=${process.env.WHOISXML_API_KEY}&domainName=${target}`
         );
@@ -20,6 +19,7 @@ export default async function handler(req, res) {
             `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${process.env.GOOGLE_API_KEY}`,
             {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     client: { clientId: "lol-scanner", clientVersion: "1.0" },
                     threatInfo: {
@@ -38,7 +38,6 @@ export default async function handler(req, res) {
         );
         if (!solscanResponse.ok) throw new Error(`Solscan API error: ${solscanResponse.statusText}`);
 
-        // Process data
         const responseData = {
             whois: {
                 domainAge: calculateDomainAge(await whoisResponse.text()),
@@ -55,7 +54,6 @@ export default async function handler(req, res) {
         res.status(200).json(responseData);
         
     } catch (error) {
-        // Return PROPER error format
         res.status(500).json({
             error: "ServerError",
             message: error.message,
@@ -64,7 +62,6 @@ export default async function handler(req, res) {
     }
 }
 
-// Helper functions
 function calculateDomainAge(whoisText) {
     try {
         const creationDate = whoisText.match(/Creation Date: (.*)/)[1];
@@ -83,3 +80,5 @@ async function checkSSL(url) {
         return false;
     }
 }
+
+module.exports = handler; // Corrected export
