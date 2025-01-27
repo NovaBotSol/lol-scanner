@@ -1,115 +1,61 @@
 const fetch = require('node-fetch');
 
-// Validate Solana address format
-const isValidSolanaAddress = (address) => {
-  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
-};
-
-// Validate URL format
-const isValidURL = (str) => {
-  try {
-    new URL(str);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Content-Type', 'application/json');
+    try {
+        const { target } = req.body;
+        
+        // New AI-focused checks
+        const [whoisData, contentAnalysis] = await Promise.all([
+            getWhoisData(target),
+            analyzeContent(target)
+        ]);
 
-  try {
-    // Validate request method
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
+        const responseData = {
+            domainAge: whoisData.domainAge,
+            aiMentions: contentAnalysis.aiKeywords,
+            whitepaper: contentAnalysis.hasWhitepaper,
+            teamTransparency: await checkTeamTransparency(target),
+            githubActivity: await checkGitHubActivity(target),
+            socialProof: await checkSocialPresence(target)
+        };
+
+        res.status(200).json(responseData);
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
+}
 
-    // Parse and validate input
-    const { target } = req.body;
-    if (!target) {
-      return res.status(400).json({ error: 'Missing target parameter' });
-    }
-
-    // Determine input type
-    const isURL = isValidURL(target);
-    const isSolanaAddress = isValidSolanaAddress(target);
-
-    if (!isURL && !isSolanaAddress) {
-      return res.status(400).json({ error: 'Invalid URL or Solana address' });
-    }
-
-    // Validate environment variables
-    if (!process.env.WHOISXML_API_KEY || !process.env.GOOGLE_API_KEY) {
-      throw new Error("Missing required API keys");
-    }
-
-    // Prepare data collection
-    const responseData = {
-      whois: { domainAge: 0, hasSSL: false },
-      gsb: { malwareDetected: false },
-      solscan: { verified: false }
+// Helper functions for new parameters
+async function analyzeContent(url) {
+    const response = await fetch(url);
+    const html = await response.text();
+    
+    return {
+        aiKeywords: /artificial intelligence|machine learning|neural network/i.test(html),
+        hasWhitepaper: /whitepaper\.pdf/i.test(html)
     };
+}
 
-    // Process URL checks
-    if (isURL) {
-      // WHOIS check
-      const whoisResponse = await fetch(
-        `https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=${process.env.WHOISXML_API_KEY}&domainName=${target}`
-      );
-      const whoisText = await whoisResponse.text();
-      const creationDate = whoisText.match(/Creation Date: (.*)/)?.[1];
-      responseData.whois.domainAge = creationDate ? 
-        Math.floor((Date.now() - new Date(creationDate)) / (86400 * 1000)) : 0;
-      
-      // SSL check
-      responseData.whois.hasSSL = target.startsWith('https://');
+async function checkTeamTransparency(url) {
+    const response = await fetch(`${url}/about`);
+    const html = await response.text();
+    return /meet the team|our team/i.test(html);
+}
 
-      // Google Safe Browsing check
-      const gsbResponse = await fetch(
-        `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${process.env.GOOGLE_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            client: { clientId: "lol-scanner", clientVersion: "1.0" },
-            threatInfo: {
-              threatTypes: ["MALWARE"],
-              threatEntryTypes: ["URL"],
-              threatEntries: [{ url: target }]
-            }
-          })
-        }
-      );
-      const gsbData = await gsbResponse.json();
-      responseData.gsb.malwareDetected = gsbData.matches?.length > 0;
-    }
+async function checkGitHubActivity(url) {
+    const repoMatch = url.match(/github\.com\/([^/]+)/);
+    if (!repoMatch) return false;
+    
+    const response = await fetch(`https://api.github.com/repos/${repoMatch[1]}/commits`);
+    const commits = await response.json();
+    return commits.length > 10;
+}
 
-    // Process Solana contract check
-    if (isSolanaAddress) {
-      try {
-        const solscanResponse = await fetch(
-          `https://api.solscan.io/contract?address=${target}`,
-          { headers: { 'User-Agent': 'LOL-Scanner/1.0' } }
-        );
-        const solscanData = await solscanResponse.json();
-        responseData.solscan.verified = solscanData.verified || false;
-      } catch (error) {
-        console.error('Solscan API error:', error);
-      }
-    }
-
-    res.status(200).json(responseData);
-
-  } catch (error) {
-    console.error('API Error:', error);
-    res.status(500).json({ 
-      error: error.message,
-      inputType: isValidURL(target) ? 'URL' : 
-                isValidSolanaAddress(target) ? 'Solana' : 'Invalid'
-    });
-  }
+async function checkSocialPresence(url) {
+    const domain = new URL(url).hostname;
+    const twitterCheck = await fetch(`https://twitter.com/${domain}`);
+    return twitterCheck.status === 200;
 }
 
 module.exports = handler;

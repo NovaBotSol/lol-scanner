@@ -2,92 +2,250 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>LOL - Larp or Legit</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOL - AI Legitimacy Scanner</title>
     <style>
-        /* Keep existing CSS styles unchanged */
-        body { font-family: 'Segoe UI', sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; background: #f0f2f5; }
-        .scanner-box { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        input { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; margin: 1rem 0; font-size: 16px; }
-        button { background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #45a049; }
-        .results { margin-top: 2rem; }
-        .score { font-size: 24px; font-weight: bold; padding: 1rem; border-radius: 8px; text-align: center; }
-        .good { background: #d4edda; color: #155724; }
-        .bad { background: #f8d7da; color: #721c24; }
+        :root {
+            --primary: #6366f1;
+            --secondary: #a855f7;
+            --background: #0f172a;
+            --surface: #1e293b;
+            --error: #ef4444;
+            --success: #22c55e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background: var(--background);
+            color: white;
+            min-height: 100vh;
+            padding: 2rem;
+            display: grid;
+            place-items: center;
+        }
+
+        .scanner-container {
+            max-width: 800px;
+            width: 100%;
+            background: linear-gradient(145deg, var(--surface), #0f172a);
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(12px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 2.5rem;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 1.25rem;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
+        }
+
+        .scan-button {
+            width: 100%;
+            padding: 1.25rem;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .scan-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .result-card {
+            margin-top: 2rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 2rem;
+            display: none;
+        }
+
+        .verdict {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .verdict-legit {
+            background: rgba(34,197,94,0.15);
+            color: var(--success);
+        }
+
+        .verdict-larp {
+            background: rgba(239,68,68,0.15);
+            color: var(--error);
+        }
+
+        .score-meter {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 2rem;
+            position: relative;
+        }
+
+        .analysis-details {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+        }
+
+        .metric-good { color: var(--success); }
+        .metric-bad { color: var(--error); }
+        .metric-neutral { color: #94a3b8; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
-    <div class="scanner-box">
-        <h1>LOL Scanner 🔍</h1>
-        <input type="text" id="target" placeholder="Enter website URL or Solana contract address">
-        <div id="error" class="error"></div>
-        <button onclick="startScan(event)">Check Legitimacy</button>
-        <div class="results" id="results"></div>
+    <div class="scanner-container">
+        <div class="header">
+            <h1>AI Legitimacy Scanner</h1>
+            <p>Cut through the hype - verify AI project authenticity</p>
+        </div>
+
+        <div class="input-group">
+            <input type="text" class="input-field" 
+                   placeholder="https://example.com" 
+                   id="targetInput">
+        </div>
+
+        <button class="scan-button" onclick="startAnalysis()">
+            Analyze Project
+        </button>
+
+        <div class="result-card" id="resultCard">
+            <div class="verdict" id="verdict"></div>
+            <div class="analysis-details" id="analysisDetails"></div>
+        </div>
     </div>
 
     <script>
-    function validateInput(input) {
-        const isURL = input => {
-            try { new URL(input); return true } 
-            catch { return false }
-        };
-        const isSolana = input => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(input);
-        return isURL(input) || isSolana(input);
-    }
+    async function startAnalysis() {
+        const url = document.getElementById('targetInput').value;
+        const resultCard = document.getElementById('resultCard');
+        const verdict = document.getElementById('verdict');
+        const details = document.getElementById('analysisDetails');
 
-    async function startScan(e) {
-        e.preventDefault();
-        const target = document.getElementById('target').value.trim();
-        const errorEl = document.getElementById('error');
-        const results = document.getElementById('results');
-        
-        errorEl.textContent = '';
-        results.innerHTML = 'Scanning...';
-
-        if (!validateInput(target)) {
-            errorEl.textContent = 'Please enter a valid URL or Solana address';
-            results.innerHTML = '';
-            return;
-        }
+        resultCard.style.display = 'block';
+        resultCard.innerHTML = '<div class="loading">Analyzing...</div>';
 
         try {
             const response = await fetch('/api/scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target })
+                body: JSON.stringify({ target: url })
             });
 
             const data = await response.json();
+            renderResults(data);
             
-            if (response.status !== 200) {
-                throw new Error(data.error || 'Scan failed');
-            }
-
-            const score = calculateScore(data);
-            results.innerHTML = `
-                <div class="score ${score > 50 ? 'good' : 'bad'}">
-                    Legitimacy Score: ${score}/100
-                </div>
-                <h3>Details:</h3>
-                <pre>${JSON.stringify(data, null, 2)}</pre>
-            `;
         } catch (error) {
-            results.innerHTML = `Error: ${error.message}`;
+            resultCard.innerHTML = `<div class="error">${error.message}</div>`;
         }
+    }
+
+    function renderResults(data) {
+        const score = calculateScore(data);
+        const verdictText = getVerdict(score);
+        
+        document.getElementById('verdict').innerHTML = `
+            <div class="verdict ${score > 70 ? 'verdict-legit' : 'verdict-larp'}">
+                ${verdictText}
+                <div class="score">${score}/100</div>
+            </div>
+        `;
+
+        const detailsHTML = `
+            <div class="metric ${data.aiMentions ? 'metric-good' : 'metric-bad'}">
+                <span>AI Technology Mentions</span>
+                <span>${data.aiMentions ? '✅ Verified' : '❌ Missing'}</span>
+            </div>
+            <div class="metric ${data.whitepaper ? 'metric-good' : 'metric-bad'}">
+                <span>Technical Whitepaper</span>
+                <span>${data.whitepaper ? '✅ Found' : '❌ Missing'}</span>
+            </div>
+            <div class="metric ${data.teamTransparency ? 'metric-good' : 'metric-bad'}">
+                <span>Team Transparency</span>
+                <span>${data.teamTransparency ? '✅ Clear' : '❌ Anonymous'}</span>
+            </div>
+            <div class="metric ${data.githubActivity ? 'metric-good' : 'metric-bad'}">
+                <span>Code Activity</span>
+                <span>${data.githubActivity ? '✅ Active' : '❌ Inactive'}</span>
+            </div>
+        `;
+
+        document.getElementById('analysisDetails').innerHTML = detailsHTML;
+        resultCard.style.animation = 'fadeIn 0.5s ease';
     }
 
     function calculateScore(data) {
         let score = 0;
-        score += Math.min(data.whois.domainAge || 0, 40);
-        score += data.whois.hasSSL ? 20 : 0;
-        score += !data.gsb.malwareDetected ? 30 : 0;
-        
-        // Only add Solscan score if contract was checked
-        if (data.solscan.verified !== undefined) {
-            score += data.solscan.verified ? 10 : 0;
-        }
-        
-        return Math.min(Math.max(score, 0), 100);
+        score += data.aiMentions ? 25 : 0;
+        score += data.whitepaper ? 20 : 0;
+        score += data.teamTransparency ? 15 : 0;
+        score += data.githubActivity ? 15 : 0;
+        score += data.socialProof ? 15 : 0;
+        score += data.domainAge > 365 ? 10 : 0;
+        return Math.min(score, 100);
+    }
+
+    function getVerdict(score) {
+        if (score >= 80) return "🌟 Legit AI Project";
+        if (score >= 60) return "⚠️ Promising but Needs Verification";
+        return "🚩 Likely LARP";
     }
     </script>
 </body>
