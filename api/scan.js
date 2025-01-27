@@ -1,40 +1,76 @@
 export default async function handler(req, res) {
-    const { target } = req.body ? JSON.parse(req.body) : { target: '' };
-
-    // Validate input
-    if (!target) {
-        return res.status(400).json({ error: "Missing target parameter" });
-    }
-
+    // Set JSON content type for all responses
+    res.setHeader('Content-Type', 'application/json');
+    
     try {
-        // Validate API keys first
-        if (!process.env.WHOISXML_API_KEY || !process.env.GOOGLE_API_KEY) {
-            throw new Error("API keys not configured properly");
+        // Parse request body
+        const { target } = req.body ? JSON.parse(req.body) : {};
+        
+        // Validate input
+        if (!target) {
+            return res.status(400).json({ 
+                error: "Invalid Request",
+                message: "Missing target parameter" 
+            });
         }
 
-        // [Keep the existing API call code here...]
+        // Validate API keys
+        if (!process.env.WHOISXML_API_KEY || !process.env.GOOGLE_API_KEY) {
+            throw new Error("Server configuration error: Missing API keys");
+        }
 
-        // Return proper JSON response
-        res.setHeader('Content-Type', 'application/json');
+        // API calls
+        const [whoisData, gsbData, solscanData] = await Promise.all([
+            fetch(`https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=${process.env.WHOISXML_API_KEY}&domainName=${target}`),
+            fetch(`https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${process.env.GOOGLE_API_KEY}`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    client: { clientId: "lol-scanner", clientVersion: "1.0" },
+                    threatInfo: { 
+                        threatTypes: ["MALWARE", "SOCIAL_ENGINEERING"],
+                        platformTypes: ["ANY_PLATFORM"],
+                        threatEntryTypes: ["URL"],
+                        threatEntries: [{ url: target }]
+                    }
+                })
+            }),
+            fetch(`https://api.solscan.io/contract?address=${target}`)
+        ]);
+
+        // Process responses
+        const response = {
+            whois: {
+                domainAge: await calculateDomainAge(await whoisData.text()),
+                hasSSL: await checkSSL(target)
+            },
+            gsb: {
+                malwareDetected: (await gsbData.json()).matches?.length > 0
+            },
+            solscan: {
+                verified: (await solscanData.json()).verified
+            }
+        };
+
         res.status(200).json(response);
+        
     } catch (error) {
-        // Return errors in JSON format
-        res.setHeader('Content-Type', 'application/json');
+        console.error('Server error:', error);
         res.status(500).json({ 
-            error: "Server error", 
+            error: "Internal Server Error",
             message: error.message 
         });
     }
 }
 
-// Updated helper functions with error handling
+// Helper functions
 async function calculateDomainAge(whoisText) {
     try {
-        const creationMatch = whoisText.match(/Creation Date: (.*)/);
-        if (!creationMatch) return 0;
+        const creationDateMatch = whoisText.match(/Creation Date: (.*)/);
+        if (!creationDateMatch) return 0;
         
-        const createdDate = new Date(creationMatch[1]);
-        return Math.floor((Date.now() - createdDate) / (1000 * 86400));
+        const createdDate = new Date(creationDateMatch[1]);
+        const ageDays = Math.floor((Date.now() - createdDate) / (1000 * 86400));
+        return Math.max(ageDays, 0);
     } catch {
         return 0;
     }
