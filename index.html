@@ -36,59 +36,66 @@
     <div class="scanner-box">
         <h1>LOL Scanner 🔍</h1>
         <input type="text" id="target" placeholder="Enter website URL or contract address">
-        <button onclick="startScan()">Check Legitimacy</button>
+        <button onclick="startScan(event)">Check Legitimacy</button>
         <div class="results" id="results"></div>
     </div>
 
     <script>
-async function startScan() {
-    const target = document.getElementById('target').value;
-    const results = document.getElementById('results');
-    results.innerHTML = 'Scanning...';
+    async function startScan(e) {
+        e.preventDefault();
+        console.log('Scan started...');
+        
+        const target = document.getElementById('target').value;
+        const results = document.getElementById('results');
+        results.innerHTML = 'Scanning...';
 
-    try {
-        const response = await fetch('/api/scan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target })
-        });
-        
-        // First check if response is JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            throw new Error(await response.text());
+        try {
+            console.log('Sending request for:', target);
+            const response = await fetch('/api/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target })
+            });
+            
+            console.log('Received response status:', response.status);
+            const contentType = response.headers.get('content-type');
+            const responseText = await response.text();
+            
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error(`Invalid response: ${responseText.slice(0, 100)}`);
+            }
+
+            const data = JSON.parse(responseText);
+            console.log('Parsed data:', data);
+
+            if (data.error) {
+                throw new Error(`${data.error}: ${data.message}`);
+            }
+            
+            let score = calculateScore(data);
+            
+            results.innerHTML = `
+                <div class="score ${score > 50 ? 'good' : 'bad'}">
+                    Legitimacy Score: ${score}/100
+                </div>
+                <h3>Details:</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+        } catch (error) {
+            console.error('Full error:', error);
+            results.innerHTML = `Error: ${error.message}`;
         }
-        
-        const data = await response.json();
-        
-        if (data.error) {
-            throw new Error(`${data.error}: ${data.message}`);
-        }
-        
-        let score = calculateScore(data);
-        
-        results.innerHTML = `
-            <div class="score ${score > 50 ? 'good' : 'bad'}">
-                Legitimacy Score: ${score}/100
-            </div>
-            <h3>Details:</h3>
-            <pre>${
+    }
 
     function calculateScore(data) {
         let score = 0;
-        // Domain age scoring (max 40 points)
-        if (data.whois.domainAge > 365) score += 40;
-        else if (data.whois.domainAge > 180) score += 30;
+        if (data.whois?.domainAge > 365) score += 40;
+        else if (data.whois?.domainAge > 180) score += 30;
         else score += 10;
 
-        // SSL scoring (20 points)
-        if (data.whois.hasSSL) score += 20;
-
-        // Malware detection (negative 30 if found)
-        if (!data.gsb.malwareDetected) score += 30;
-
-        // Contract verification (10 points)
-        if (data.solscan.verified) score += 10;
+        if (data.whois?.hasSSL) score += 20;
+        if (!data.gsb?.malwareDetected) score += 30;
+        if (data.solscan?.verified) score += 10;
 
         return Math.min(Math.max(score, 0), 100);
     }
