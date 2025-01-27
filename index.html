@@ -150,6 +150,44 @@
         .metric-good { color: var(--success); }
         .metric-bad { color: var(--error); }
 
+        .details-expandable {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .details-expandable small {
+            display: block;
+            text-align: center;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 1rem;
+        }
+
+        .detail-group {
+            margin: 1rem 0;
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+        }
+
+        .detail-group strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        .detail-group ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .detail-group li {
+            padding: 0.25rem 0;
+            color: rgba(255,255,255,0.8);
+            font-size: 0.9rem;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -255,21 +293,40 @@
                 <div class="score">${score}/100</div>
             </div>
             <div class="analysis-details">
-                <div class="metric ${data.aiMentions ? 'metric-good' : 'metric-bad'}">
-                    <span>AI Technology Implementation</span>
-                    <span>${data.aiMentions ? '✅ Verified' : '❌ Not Found'}</span>
+                <div class="metric ${data.scores.aiTechnology > 20 ? 'metric-good' : 'metric-bad'}">
+                    <span>AI Technology Implementation (${data.scores.aiTechnology}/40)</span>
+                    <span>${data.aiMentions ? '✅ Detected' : '❌ Limited'}</span>
                 </div>
-                <div class="metric ${data.whitepaper ? 'metric-good' : 'metric-bad'}">
-                    <span>Technical Documentation</span>
-                    <span>${data.whitepaper ? '✅ Found' : '❌ Missing'}</span>
+                <div class="metric ${data.scores.documentation > 10 ? 'metric-good' : 'metric-bad'}">
+                    <span>Technical Documentation (${data.scores.documentation}/20)</span>
+                    <span>${data.whitepaper ? '✅ Comprehensive' : '❌ Limited'}</span>
                 </div>
-                <div class="metric ${data.teamTransparency ? 'metric-good' : 'metric-bad'}">
-                    <span>Team Information</span>
-                    <span>${data.teamTransparency ? '✅ Transparent' : '❌ Anonymous'}</span>
+                <div class="metric ${data.scores.team > 7 ? 'metric-good' : 'metric-bad'}">
+                    <span>Team & Company (${data.scores.team}/15)</span>
+                    <span>${data.teamTransparency ? '✅ Verified' : '❌ Limited Info'}</span>
                 </div>
-                <div class="metric ${data.githubActivity ? 'metric-good' : 'metric-bad'}">
-                    <span>Development Activity</span>
-                    <span>${data.githubActivity ? '✅ Active' : '❌ No Activity'}</span>
+                <div class="metric ${data.scores.development > 7 ? 'metric-good' : 'metric-bad'}">
+                    <span>Development Activity (${data.scores.development}/15)</span>
+                    <span>${data.githubActivity ? '✅ Active' : '❌ Limited'}</span>
+                </div>
+                <div class="metric ${data.scores.market > 2 ? 'metric-good' : 'metric-bad'}">
+                    <span>Market Presence (${data.scores.market}/5)</span>
+                    <span>${data.scores.market > 2 ? '✅ Established' : '❌ Minimal'}</span>
+                </div>
+                <div class="metric ${data.scores.social > 2 ? 'metric-good' : 'metric-bad'}">
+                    <span>Community & Social (${data.scores.social}/5)</span>
+                    <span>${data.scores.social > 2 ? '✅ Active' : '❌ Limited'}</span>
+                </div>
+                <div class="details-expandable">
+                    <small>Mouse over metrics for details</small>
+                    ${Object.entries(data.details).map(([key, details]) => `
+                        <div class="detail-group">
+                            <strong>${key}:</strong>
+                            <ul>
+                                ${details.map(detail => `<li>${detail}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `).join('')}
                 </div>
             </div>
         `;
@@ -279,14 +336,30 @@
     }
 
     function calculateScore(data) {
-        let score = 0;
-        score += data.aiMentions ? 25 : 0;
-        score += data.whitepaper ? 20 : 0;
-        score += data.teamTransparency ? 15 : 0;
-        score += data.githubActivity ? 15 : 0;
-        score += data.socialProof ? 15 : 0;
-        score += data.domainAge > 365 ? 10 : 0;
-        return Math.min(score, 100);
+        if (!data.scores) return 0;
+        
+        const { scores } = data;
+        let totalScore = 0;
+        
+        // AI Technology (40 points)
+        totalScore += scores.aiTechnology;
+        
+        // Documentation (20 points)
+        totalScore += scores.documentation;
+        
+        // Team & Company (15 points)
+        totalScore += scores.team;
+        
+        // Development Activity (15 points)
+        totalScore += scores.development;
+        
+        // Market Presence (5 points)
+        totalScore += scores.market;
+        
+        // Social Proof (5 points)
+        totalScore += scores.social;
+        
+        return Math.min(totalScore, 100);
     }
 
     function getVerdict(score) {
