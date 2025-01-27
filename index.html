@@ -313,7 +313,7 @@
 
             <div class="input-group">
                 <input type="text" class="input-field" 
-                       placeholder="Enter project URL (e.g., https://example.com)" 
+                       placeholder="Enter Github Repo or project URL (e.g., https://example.com)" 
                        id="targetInput">
             </div>
 
@@ -326,7 +326,158 @@
     </main>
 
     <script>
-        // Your existing JavaScript remains the same
+        // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add error handling for input validation
+        const targetInput = document.getElementById('targetInput');
+        targetInput.addEventListener('input', function() {
+            try {
+                if (this.value) new URL(this.value);
+            } catch {
+                this.setCustomValidity('Please enter a valid URL starting with http:// or https://');
+            }
+        });
+    });
+
+    async function startAnalysis() {
+        const targetInput = document.getElementById('targetInput');
+        const resultCard = document.getElementById('resultCard');
+        
+        if (!targetInput || !resultCard) {
+            console.error('Required elements not found');
+            return;
+        }
+
+        const url = targetInput.value.trim();
+        
+        if (!url) {
+            resultCard.style.display = 'block';
+            resultCard.innerHTML = '<div class="error">Please enter a valid URL</div>';
+            return;
+        }
+
+        try {
+            new URL(url);
+        } catch {
+            resultCard.style.display = 'block';
+            resultCard.innerHTML = '<div class="error">Please enter a valid URL starting with http:// or https://</div>';
+            return;
+        }
+
+        resultCard.style.display = 'block';
+        resultCard.innerHTML = '<div class="loading">Analyzing your AI project...</div>';
+
+        try {
+            const response = await fetch('/api/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target: url })
+            });
+
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            renderResults(data);
+            
+        } catch (error) {
+            resultCard.innerHTML = `<div class="error">${error.message}</div>`;
+        }
+    }
+
+    function renderResults(data) {
+        const resultCard = document.getElementById('resultCard');
+        if (!resultCard) return;
+
+        const score = calculateScore(data);
+        const verdictText = getVerdict(score);
+        
+        const resultsHTML = `
+            <div class="verdict ${score > 70 ? 'verdict-legit' : 'verdict-larp'}">
+                ${verdictText}
+                <div class="score">${score}/100</div>
+            </div>
+            <div class="analysis-details">
+                <div class="metric ${data.scores.aiTechnology > 20 ? 'metric-good' : 'metric-bad'}">
+                    <span>AI Technology Implementation (${data.scores.aiTechnology}/40)</span>
+                    <span>${data.aiMentions ? '✅ Detected' : '❌ Limited'}</span>
+                </div>
+                <div class="metric ${data.scores.documentation > 10 ? 'metric-good' : 'metric-bad'}">
+                    <span>Technical Documentation (${data.scores.documentation}/20)</span>
+                    <span>${data.whitepaper ? '✅ Comprehensive' : '❌ Limited'}</span>
+                </div>
+                <div class="metric ${data.scores.team > 7 ? 'metric-good' : 'metric-bad'}">
+                    <span>Team & Company (${data.scores.team}/15)</span>
+                    <span>${data.teamTransparency ? '✅ Verified' : '❌ Limited Info'}</span>
+                </div>
+                <div class="metric ${data.scores.development > 7 ? 'metric-good' : 'metric-bad'}">
+                    <span>Development Activity (${data.scores.development}/15)</span>
+                    <span>${data.githubActivity ? '✅ Active' : '❌ Limited'}</span>
+                </div>
+                <div class="metric ${data.scores.market > 2 ? 'metric-good' : 'metric-bad'}">
+                    <span>Market Presence (${data.scores.market}/5)</span>
+                    <span>${data.scores.market > 2 ? '✅ Established' : '❌ Minimal'}</span>
+                </div>
+                <div class="metric ${data.scores.social > 2 ? 'metric-good' : 'metric-bad'}">
+                    <span>Community & Social (${data.scores.social}/5)</span>
+                    <span>${data.scores.social > 2 ? '✅ Active' : '❌ Limited'}</span>
+                </div>
+                <div class="details-expandable">
+                    <small>Mouse over metrics for details</small>
+                    ${Object.entries(data.details).map(([key, details]) => `
+                        <div class="detail-group">
+                            <strong>${key}:</strong>
+                            <ul>
+                                ${details.map(detail => `<li>${detail}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        resultCard.innerHTML = resultsHTML;
+        resultCard.style.animation = 'fadeIn 0.5s ease';
+    }
+
+    function calculateScore(data) {
+        if (!data.scores) return 0;
+        
+        const { scores } = data;
+        let totalScore = 0;
+        
+        // AI Technology (40 points)
+        totalScore += scores.aiTechnology;
+        
+        // Documentation (20 points)
+        totalScore += scores.documentation;
+        
+        // Team & Company (15 points)
+        totalScore += scores.team;
+        
+        // Development Activity (15 points)
+        totalScore += scores.development;
+        
+        // Market Presence (5 points)
+        totalScore += scores.market;
+        
+        // Social Proof (5 points)
+        totalScore += scores.social;
+        
+        return Math.min(totalScore, 100);
+    }
+
+    function getVerdict(score) {
+        if (score >= 80) return "🌟 Looks Like a Legit AI Project!";
+        if (score >= 60) return "⚠️ Potential AI Project - Needs More Verification";
+        return "🚩 Warning: Likely AI LARP";
+    }
     </script>
 </body>
 </html>
