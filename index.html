@@ -41,32 +41,38 @@
     </div>
 
     <script>
-    async function startScan() {
-        const target = document.getElementById('target').value;
-        const results = document.getElementById('results');
-        results.innerHTML = 'Scanning...';
+async function startScan() {
+    const target = document.getElementById('target').value;
+    const results = document.getElementById('results');
+    results.innerHTML = 'Scanning...';
 
-        try {
-            const response = await fetch('/api/scan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target })
-            });
-            
-            const data = await response.json();
-            let score = calculateScore(data);
-            
-            results.innerHTML = `
-                <div class="score ${score > 50 ? 'good' : 'bad'}">
-                    Legitimacy Score: ${score}/100
-                </div>
-                <h3>Details:</h3>
-                <pre>${JSON.stringify(data, null, 2)}</pre>
-            `;
-        } catch (error) {
-            results.innerHTML = `Error: ${error.message}`;
+    try {
+        const response = await fetch('/api/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target })
+        });
+        
+        // First check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(await response.text());
         }
-    }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(`${data.error}: ${data.message}`);
+        }
+        
+        let score = calculateScore(data);
+        
+        results.innerHTML = `
+            <div class="score ${score > 50 ? 'good' : 'bad'}">
+                Legitimacy Score: ${score}/100
+            </div>
+            <h3>Details:</h3>
+            <pre>${
 
     function calculateScore(data) {
         let score = 0;
