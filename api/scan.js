@@ -1,52 +1,50 @@
 export default async function handler(req, res) {
-    const { target } = JSON.parse(req.body);
+    const { target } = req.body ? JSON.parse(req.body) : { target: '' };
 
-    // API configuration
-    const API_KEYS = {
-        whoisxml: process.env.WHOISXML_API_KEY,
-        gsb: process.env.GOOGLE_API_KEY,
-        solscan: process.env.SOLSCAN_API_KEY
-    };
+    // Validate input
+    if (!target) {
+        return res.status(400).json({ error: "Missing target parameter" });
+    }
 
     try {
-        const [whoisData, gsbData, solscanData] = await Promise.all([
-            fetch(`https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=${at_IaYyCc07pvQuaIy25w9BpWq0D62i7}&domainName=${target}`),
-            fetch(`https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${AIzaSyAFegOQGhfLuBAILMLJCVdFs_xVDbP61Q8}`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    client: { clientId: "lol-scanner", clientVersion: "1.0" },
-                    threatInfo: { url: target }
-                })
-            }),
-            fetch(`https://api.solscan.io/contract?address=${target}`)
-        ]);
+        // Validate API keys first
+        if (!process.env.WHOISXML_API_KEY || !process.env.GOOGLE_API_KEY) {
+            throw new Error("API keys not configured properly");
+        }
 
-        const response = {
-            whois: {
-                domainAge: await calculateDomainAge(await whoisData.text()),
-                hasSSL: await checkSSL(target)
-            },
-            gsb: {
-                malwareDetected: (await gsbData.json()).matches?.length > 0
-            },
-            solscan: {
-                verified: (await solscanData.json()).verified
-            }
-        };
+        // [Keep the existing API call code here...]
 
+        // Return proper JSON response
+        res.setHeader('Content-Type', 'application/json');
         res.status(200).json(response);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        // Return errors in JSON format
+        res.setHeader('Content-Type', 'application/json');
+        res.status(500).json({ 
+            error: "Server error", 
+            message: error.message 
+        });
     }
 }
 
-// Helper functions
+// Updated helper functions with error handling
 async function calculateDomainAge(whoisText) {
-    const createdDate = new Date(whoisText.match(/Creation Date: (.*)/)[1]);
-    return Math.floor((Date.now() - createdDate) / (1000 * 86400));
+    try {
+        const creationMatch = whoisText.match(/Creation Date: (.*)/);
+        if (!creationMatch) return 0;
+        
+        const createdDate = new Date(creationMatch[1]);
+        return Math.floor((Date.now() - createdDate) / (1000 * 86400));
+    } catch {
+        return 0;
+    }
 }
 
 async function checkSSL(url) {
-    const response = await fetch(`https://${url}`);
-    return response.ok;
+    try {
+        const response = await fetch(`https://${url}`);
+        return response.ok;
+    } catch {
+        return false;
+    }
 }
