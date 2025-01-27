@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LOL - AI Legitimacy Scanner</title>
+    <title>AI Legitimacy Scanner</title>
     <style>
         :root {
             --primary: #6366f1;
@@ -101,6 +101,18 @@
             display: none;
         }
 
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            font-size: 1.2rem;
+        }
+
+        .error {
+            color: var(--error);
+            text-align: center;
+            padding: 1rem;
+        }
+
         .verdict {
             text-align: center;
             font-size: 1.5rem;
@@ -119,13 +131,6 @@
             color: var(--error);
         }
 
-        .score-meter {
-            width: 200px;
-            height: 200px;
-            margin: 0 auto 2rem;
-            position: relative;
-        }
-
         .analysis-details {
             display: grid;
             gap: 1rem;
@@ -141,7 +146,6 @@
 
         .metric-good { color: var(--success); }
         .metric-bad { color: var(--error); }
-        .metric-neutral { color: #94a3b8; }
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
@@ -158,36 +162,53 @@
 
         <div class="input-group">
             <input type="text" class="input-field" 
-                   placeholder="https://example.com" 
+                   placeholder="Enter project URL (e.g., https://example.com)" 
                    id="targetInput">
         </div>
 
-        <button class="scan-button" onclick="startAnalysis()">
+        <button class="scan-button" id="scanButton">
             Analyze Project
         </button>
 
-        <div class="result-card" id="resultCard">
-            <div class="verdict" id="verdict"></div>
-            <div class="analysis-details" id="analysisDetails"></div>
-        </div>
+        <div class="result-card" id="resultCard"></div>
     </div>
 
     <script>
-    async function startAnalysis() {
-        const url = document.getElementById('targetInput').value;
-        const resultCard = document.getElementById('resultCard');
-        const verdict = document.getElementById('verdict');
-        const details = document.getElementById('analysisDetails');
+    document.addEventListener('DOMContentLoaded', function() {
+        const scanButton = document.getElementById('scanButton');
+        scanButton.addEventListener('click', startAnalysis);
+    });
 
-        resultCard.style.display = 'block';
-        resultCard.innerHTML = '<div class="loading">Analyzing...</div>';
+    async function startAnalysis() {
+        const targetInput = document.getElementById('targetInput');
+        const resultCard = document.getElementById('resultCard');
+        
+        if (!targetInput || !resultCard) {
+            console.error('Required elements not found');
+            return;
+        }
+
+        const url = targetInput.value.trim();
+        
+        if (!url) {
+            resultCard.style.display = 'block';
+            resultCard.innerHTML = '<div class="error">Please enter a valid URL</div>';
+            return;
+        }
 
         try {
+            resultCard.style.display = 'block';
+            resultCard.innerHTML = '<div class="loading">Analyzing project...</div>';
+
             const response = await fetch('/api/scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ target: url })
             });
+
+            if (!response.ok) {
+                throw new Error('Analysis failed. Please try again.');
+            }
 
             const data = await response.json();
             renderResults(data);
@@ -198,36 +219,38 @@
     }
 
     function renderResults(data) {
+        const resultCard = document.getElementById('resultCard');
+        if (!resultCard) return;
+
         const score = calculateScore(data);
         const verdictText = getVerdict(score);
         
-        document.getElementById('verdict').innerHTML = `
+        const detailsHTML = `
             <div class="verdict ${score > 70 ? 'verdict-legit' : 'verdict-larp'}">
                 ${verdictText}
                 <div class="score">${score}/100</div>
             </div>
+            <div class="analysis-details">
+                <div class="metric ${data.aiMentions ? 'metric-good' : 'metric-bad'}">
+                    <span>AI Technology Mentions</span>
+                    <span>${data.aiMentions ? '✅ Verified' : '❌ Missing'}</span>
+                </div>
+                <div class="metric ${data.whitepaper ? 'metric-good' : 'metric-bad'}">
+                    <span>Technical Whitepaper</span>
+                    <span>${data.whitepaper ? '✅ Found' : '❌ Missing'}</span>
+                </div>
+                <div class="metric ${data.teamTransparency ? 'metric-good' : 'metric-bad'}">
+                    <span>Team Transparency</span>
+                    <span>${data.teamTransparency ? '✅ Clear' : '❌ Anonymous'}</span>
+                </div>
+                <div class="metric ${data.githubActivity ? 'metric-good' : 'metric-bad'}">
+                    <span>Code Activity</span>
+                    <span>${data.githubActivity ? '✅ Active' : '❌ Inactive'}</span>
+                </div>
+            </div>
         `;
 
-        const detailsHTML = `
-            <div class="metric ${data.aiMentions ? 'metric-good' : 'metric-bad'}">
-                <span>AI Technology Mentions</span>
-                <span>${data.aiMentions ? '✅ Verified' : '❌ Missing'}</span>
-            </div>
-            <div class="metric ${data.whitepaper ? 'metric-good' : 'metric-bad'}">
-                <span>Technical Whitepaper</span>
-                <span>${data.whitepaper ? '✅ Found' : '❌ Missing'}</span>
-            </div>
-            <div class="metric ${data.teamTransparency ? 'metric-good' : 'metric-bad'}">
-                <span>Team Transparency</span>
-                <span>${data.teamTransparency ? '✅ Clear' : '❌ Anonymous'}</span>
-            </div>
-            <div class="metric ${data.githubActivity ? 'metric-good' : 'metric-bad'}">
-                <span>Code Activity</span>
-                <span>${data.githubActivity ? '✅ Active' : '❌ Inactive'}</span>
-            </div>
-        `;
-
-        document.getElementById('analysisDetails').innerHTML = detailsHTML;
+        resultCard.innerHTML = detailsHTML;
         resultCard.style.animation = 'fadeIn 0.5s ease';
     }
 
