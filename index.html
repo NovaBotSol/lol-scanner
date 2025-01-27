@@ -101,6 +101,21 @@
             display: none;
         }
 
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            font-size: 1.2rem;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .error {
+            color: var(--error);
+            text-align: center;
+            padding: 1rem;
+            background: rgba(239,68,68,0.1);
+            border-radius: 8px;
+        }
+
         .verdict {
             text-align: center;
             font-size: 1.5rem;
@@ -119,13 +134,6 @@
             color: var(--error);
         }
 
-        .score-meter {
-            width: 200px;
-            height: 200px;
-            margin: 0 auto 2rem;
-            position: relative;
-        }
-
         .analysis-details {
             display: grid;
             gap: 1rem;
@@ -141,7 +149,6 @@
 
         .metric-good { color: var(--success); }
         .metric-bad { color: var(--error); }
-        .metric-neutral { color: #94a3b8; }
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
@@ -158,7 +165,7 @@
 
         <div class="input-group">
             <input type="text" class="input-field" 
-                   placeholder="https://example.com" 
+                   placeholder="Enter project URL (e.g., https://example.com)" 
                    id="targetInput">
         </div>
 
@@ -166,21 +173,50 @@
             Analyze Project
         </button>
 
-        <div class="result-card" id="resultCard">
-            <div class="verdict" id="verdict"></div>
-            <div class="analysis-details" id="analysisDetails"></div>
-        </div>
+        <div class="result-card" id="resultCard"></div>
     </div>
 
     <script>
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add error handling for input validation
+        const targetInput = document.getElementById('targetInput');
+        targetInput.addEventListener('input', function() {
+            try {
+                if (this.value) new URL(this.value);
+            } catch {
+                this.setCustomValidity('Please enter a valid URL starting with http:// or https://');
+            }
+        });
+    });
+
     async function startAnalysis() {
-        const url = document.getElementById('targetInput').value;
+        const targetInput = document.getElementById('targetInput');
         const resultCard = document.getElementById('resultCard');
-        const verdict = document.getElementById('verdict');
-        const details = document.getElementById('analysisDetails');
+        
+        if (!targetInput || !resultCard) {
+            console.error('Required elements not found');
+            return;
+        }
+
+        const url = targetInput.value.trim();
+        
+        if (!url) {
+            resultCard.style.display = 'block';
+            resultCard.innerHTML = '<div class="error">Please enter a valid URL</div>';
+            return;
+        }
+
+        try {
+            new URL(url);
+        } catch {
+            resultCard.style.display = 'block';
+            resultCard.innerHTML = '<div class="error">Please enter a valid URL starting with http:// or https://</div>';
+            return;
+        }
 
         resultCard.style.display = 'block';
-        resultCard.innerHTML = '<div class="loading">Analyzing...</div>';
+        resultCard.innerHTML = '<div class="loading">Analyzing your AI project...</div>';
 
         try {
             const response = await fetch('/api/scan', {
@@ -189,7 +225,16 @@
                 body: JSON.stringify({ target: url })
             });
 
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+
             const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
             renderResults(data);
             
         } catch (error) {
@@ -198,36 +243,38 @@
     }
 
     function renderResults(data) {
+        const resultCard = document.getElementById('resultCard');
+        if (!resultCard) return;
+
         const score = calculateScore(data);
         const verdictText = getVerdict(score);
         
-        document.getElementById('verdict').innerHTML = `
+        const resultsHTML = `
             <div class="verdict ${score > 70 ? 'verdict-legit' : 'verdict-larp'}">
                 ${verdictText}
                 <div class="score">${score}/100</div>
             </div>
+            <div class="analysis-details">
+                <div class="metric ${data.aiMentions ? 'metric-good' : 'metric-bad'}">
+                    <span>AI Technology Implementation</span>
+                    <span>${data.aiMentions ? '✅ Verified' : '❌ Not Found'}</span>
+                </div>
+                <div class="metric ${data.whitepaper ? 'metric-good' : 'metric-bad'}">
+                    <span>Technical Documentation</span>
+                    <span>${data.whitepaper ? '✅ Found' : '❌ Missing'}</span>
+                </div>
+                <div class="metric ${data.teamTransparency ? 'metric-good' : 'metric-bad'}">
+                    <span>Team Information</span>
+                    <span>${data.teamTransparency ? '✅ Transparent' : '❌ Anonymous'}</span>
+                </div>
+                <div class="metric ${data.githubActivity ? 'metric-good' : 'metric-bad'}">
+                    <span>Development Activity</span>
+                    <span>${data.githubActivity ? '✅ Active' : '❌ No Activity'}</span>
+                </div>
+            </div>
         `;
 
-        const detailsHTML = `
-            <div class="metric ${data.aiMentions ? 'metric-good' : 'metric-bad'}">
-                <span>AI Technology Mentions</span>
-                <span>${data.aiMentions ? '✅ Verified' : '❌ Missing'}</span>
-            </div>
-            <div class="metric ${data.whitepaper ? 'metric-good' : 'metric-bad'}">
-                <span>Technical Whitepaper</span>
-                <span>${data.whitepaper ? '✅ Found' : '❌ Missing'}</span>
-            </div>
-            <div class="metric ${data.teamTransparency ? 'metric-good' : 'metric-bad'}">
-                <span>Team Transparency</span>
-                <span>${data.teamTransparency ? '✅ Clear' : '❌ Anonymous'}</span>
-            </div>
-            <div class="metric ${data.githubActivity ? 'metric-good' : 'metric-bad'}">
-                <span>Code Activity</span>
-                <span>${data.githubActivity ? '✅ Active' : '❌ Inactive'}</span>
-            </div>
-        `;
-
-        document.getElementById('analysisDetails').innerHTML = detailsHTML;
+        resultCard.innerHTML = resultsHTML;
         resultCard.style.animation = 'fadeIn 0.5s ease';
     }
 
@@ -243,9 +290,9 @@
     }
 
     function getVerdict(score) {
-        if (score >= 80) return "🌟 Legit AI Project";
-        if (score >= 60) return "⚠️ Promising but Needs Verification";
-        return "🚩 Likely LARP";
+        if (score >= 80) return "🌟 Looks Like a Legit AI Project!";
+        if (score >= 60) return "⚠️ Potential AI Project - Needs More Verification";
+        return "🚩 Warning: Likely AI LARP";
     }
     </script>
 </body>
