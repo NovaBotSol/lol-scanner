@@ -10,8 +10,8 @@ export default async function handler(req, res) {
 
     try {
         const [whoisData, gsbData, solscanData] = await Promise.all([
-            fetch(`https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=${API_KEYS.whoisxml}&domainName=${target}`),
-            fetch(`https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${API_KEYS.gsb}`, {
+            fetch(`https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=${at_IaYyCc07pvQuaIy25w9BpWq0D62i7}&domainName=${target}`),
+            fetch(`https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${AIzaSyAFegOQGhfLuBAILMLJCVdFs_xVDbP61Q8}`, {
                 method: 'POST',
                 body: JSON.stringify({
                     client: { clientId: "lol-scanner", clientVersion: "1.0" },
